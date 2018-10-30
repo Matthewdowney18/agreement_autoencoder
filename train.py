@@ -4,7 +4,7 @@ import torch.utils.data
 import time
 
 from dataset import SentenceDataset
-from model import Seq2SeqModel, Seq2SeqModelAttention
+from model import Seq2SeqModelAttention
 from utils import variable, cuda, argmax, get_sentence_from_indices, \
     get_pretrained_embeddings, save_checkpoint, load_checkpoint, freeze_layer, \
     accuracy
@@ -12,20 +12,22 @@ from utils import variable, cuda, argmax, get_sentence_from_indices, \
 
 def main():
     nb_epochs = 100
-    batch_size = 500
+    batch_size = 400
     hidden_size = 256
     embedding_dim = 300
     pretrained_embeddings = None
     max_len = 20
-    min_count = 2
+    min_count = 1
     max_grad_norm = 5
-    val_len = 1000
-    weight_decay = 0.00001
+    val_len = 200
+    weight_decay = 0.000001
+    use_old_model = True
     model_group = "/model"
-    model_name = "/baseline"
-    project_file = "/home/mattd/pycharm/encoder"
+    model_name = "/baseline7"
+    project_file = "/home/mattd/PycharmProjects/agreement_encoder"
+    dataset_filename = "RRall2.csv"
 
-    model_filename = '{}{}{}'.format(
+    model_filename = '{}{}s{}'.format(
         project_file, model_group, model_name)
 
     description_filename = \
@@ -34,7 +36,7 @@ def main():
     output_file = '{}{}_outputs{}'.format(
         project_file, model_group, model_name)
 
-    eng_fr_filename = ''
+    eng_fr_filename = '{}/{}'.format(project_file, dataset_filename)
 
     dataset = SentenceDataset(eng_fr_filename, max_len, min_count)
     string = 'Dataset: {}'.format(len(dataset))
@@ -61,9 +63,9 @@ def main():
     padding_idx = dataset.vocab[SentenceDataset.PAD_TOKEN]
     init_idx = dataset.vocab[SentenceDataset.INIT_TOKEN]
 
-    model = Seq2SeqModel(
-        pretrained_embeddings, hidden_size, padding_idx, init_idx,
-                         max_len, vocab_size, embedding_dim)
+    model = Seq2SeqModelAttention(hidden_size, padding_idx, init_idx,
+        max_len, vocab_size, embedding_dim, pretrained_embeddings)
+
     model = cuda(model)
 
     parameters = list(model.parameters())
@@ -74,7 +76,7 @@ def main():
     train_loss, val_loss = load_checkpoint(model_filename, model, optimizer)
 
     print(description)
-    output = output + description + '\n'
+    output = output + str(description) + '\n'
     outfile = open(output_file, 'w')
     outfile.write(output)
     outfile.close()
@@ -120,11 +122,11 @@ def main():
                     torch.nn.utils.clip_grad_norm_(parameters, max_grad_norm)
                     optimizer.step()
 
-                if phase == 'val':
-                    predicted = torch.argmax(outputs.view(batch_size, max_len,
-                                                          -1), -1)
+                else:
+                    predicted = torch.argmax(outputs.view(-1, max_len,
+                        vocab_size), -1)
                     batch_sentenence_accuracy, batch_token_accuracy = accuracy(
-                        targets.view(batch_size, -1), predicted)
+                        targets.view(-1, max_len), predicted)
                     epoch_sentenence_accuracy.append(batch_sentenence_accuracy)
                     epoch_token_accuracy.append(batch_token_accuracy)
                 epoch_loss.append(float(loss))
@@ -180,8 +182,7 @@ def main():
                 string = string + u'< {}'.format(get_sentence_from_indices(
                     outputs, dataset.vocab, SentenceDataset.EOS_TOKEN))
                 print(string, end='\n')
-                output = output + string + '\n'
-                print()
+                output = output + string + '\n' + '\n'
         outfile = open(output_file, 'w')
         outfile.write(output)
         outfile.close()
