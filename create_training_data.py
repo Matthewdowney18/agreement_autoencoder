@@ -28,14 +28,42 @@ def remove_links(string):
 
 def filter_sentence(string):
     string = remove_links(string)
-    list = word_tokenize(string)
+    #list = word_tokenize(string)
+    list = string.split(' ')
     cleaned_list = []
     for item in list:
         cleaned_list.append(check_token(item))
     return ' '.join(cleaned_list)
 
 def create_training_data(df):
-    df.to_dict(orient='index')
+    #shuffle the dataset and then split it for positive and nagative examples
+    dictionary = df.to_dict(orient='index')
+    keys = list(dictionary.keys())
+    random.shuffle(keys)
+    keys_neg = keys[:len(keys) // 2]
+    keys_pos = keys[len(keys) // 2:]
+
+    dict_pos = {}
+    dict_neg = {}
+    for i,  key in enumerate(keys_pos):
+        dict_pos[i] = dictionary[key]
+        dict_pos[i]['key'] = key
+        dict_pos[i]['label'] = 'positive'
+
+    #shuffle the responses of the responses to create negative examples
+    suffled_keys_neg = keys[:len(keys) // 2]
+    random.shuffle(suffled_keys_neg)
+    for i,  key in enumerate(keys_neg):
+        dict_neg[i] = {}
+        dict_neg[i]['request'] = dictionary[key]['request']
+        dict_neg[i]['response'] = dictionary[suffled_keys_neg[i]]['response']
+        dict_neg[i]['key'] = key
+        dict_neg[i]['label'] = 'negative'
+
+    df_neg = pd.DataFrame.from_dict(dict_neg, orient='index')
+    df_pos = pd.DataFrame.from_dict(dict_pos, orient='index')
+    df = pd.concat([df_neg, df_pos])
+    return df
 
 def main():
     filename = '/home/mattd/datasets/CarRepairData.csv'
@@ -60,8 +88,8 @@ def main():
                     pairs[pair_count]['response'] = filter_sentence(row[i + 3])
                     pair_count += 1
     df = pd.DataFrame.from_dict(filtered_pairs, orient='index')
-    df.to_csv('RRall2.csv')
-    labled_df = create_training_data(df)
 
+    labled_df = create_training_data(df)
+    labled_df.to_csv('RR_negative.csv')
 if __name__ == '__main__':
     main()
